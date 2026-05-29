@@ -477,22 +477,22 @@
     }
     function hapusLibur(k) { delete daftarLiburCache[k]; localStorage.setItem('daftar_libur_sekolah', JSON.stringify(daftarLiburCache)); tampilkanHariLibur(); }
 
-    async function tarikLiburNasional() {
+    async function ambilHariLibur() {
+      const tahunIni = new Date().getFullYear();
       try {
-        const res = await fetch(`https://api-harilibur.vercel.app/api`);
+        // FIX: Memperbaiki endpoint URL DayOff API yang valid (.app bukan .api)
+        const res = await fetch(`https://dayoffapi.vercel.app/api?year=${tahunIni}`);
         const data = await res.json();
-        let jumlahBerhasil = 0;
-        data.forEach(item => {
-          if(item.holiday_date) {
-            daftarLiburCache[item.holiday_date] = item.holiday_name;
-            jumlahBerhasil++;
+        
+        data.forEach(libur => {
+          // Format tanggal dari API dimasukkan ke cache libur nasional
+          if(libur.tanggal) {
+            daftarLiburCache[libur.tanggal] = libur.keterangan;
           }
         });
-        localStorage.setItem('daftar_libur_sekolah', JSON.stringify(daftarLiburCache));
-        showToast(`Berhasil menarik ${jumlahBerhasil} Hari Libur Nasional!`, "success");
-        tampilkanHariLibur();
-      } catch(e) { 
-        showToast("Gagal mengambil data libur nasional.", "danger"); 
+        console.log("Data hari libur nasional berhasil dimuat.");
+      } catch (err) {
+        console.error("Gagal memuat data hari libur:", err);
       }
     }
 
