@@ -4,19 +4,33 @@
   <meta charset="UTF-8">
   <title>E-Presensi Kelas 6 SD 3 Jojo</title>
   <script src="https://cdn.tailwindcss.com"></script>
-  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght=300;400;500;600&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/@vladmandic/face-api/dist/face-api.js"></script>
   <style>
     body { font-family: 'Poppins', sans-serif; background-color: #F4F7F6; }
     .pastel-success { background-color: #E8F5E9; color: #2E7D32; } 
     .pastel-danger { background-color: #FFEBEE; color: #C62828; } 
     .pastel-warning { background-color: #FFF3E0; color: #EF6C00; } 
+    .toast { animation: slideIn 0.3s ease-out forwards; }
+    @keyframes slideIn { from { transform: translateY(-20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+    .video-container { position: relative; }
+    canvas { position: absolute; top: 0; left: 0; pointer-events: none; }
   </style>
 </head>
 <body class="text-slate-700 min-h-screen flex flex-col">
 
   <script>
+    // MASUKKAN URL DEPLOY APPS SCRIPT (/exec) ANDA DI BAWAH INI
     const API_URL = "https://script.google.com/macros/s/AKfycbwK5cnXfJmxcSZpzG0prl8ecu5CtmG-Uy3BCAFRbMEV7laYZS8SDX0fr2pCipba0Pl46Q/exec";
+    // Menggunakan CDN Model AI publik agar Anda tidak perlu upload file model ke GitHub
+    const MODEL_URL = "https://cdn.jsdelivr.net/npm/@vladmandic/face-api/model/";
   </script>
+
+  <div id="toast-container" class="fixed top-5 right-5 z-[9999] space-y-2 pointer-events-none"></div>
+
+  <div id="ai-loading" class="bg-amber-500 text-white text-center py-2 text-xs font-medium sticky top-0 z-[9999] transition-all">
+    ⏳ Memuat Otak AI Deteksi Wajah (Face-API)... Mohon tunggu sebentar.
+  </div>
 
   <nav class="bg-white shadow-sm border-b border-slate-100 px-6 py-4 flex flex-wrap justify-between items-center sticky top-0 z-50">
     <div class="flex items-center space-x-2">
@@ -24,25 +38,25 @@
       <span class="text-lg font-semibold tracking-wide text-slate-800">Smart<span class="text-teal-500">Presence</span></span>
     </div>
     <div class="flex space-x-2 mt-2 sm:mt-0">
-      <button onclick="switchTab('scan-tab')" id="btn-scan-tab" class="px-4 py-2 rounded-xl text-sm font-medium transition bg-teal-100 text-teal-700">📸 Scan Wajah</button>
-      <button onclick="switchTab('reg-tab')" id="btn-reg-tab" class="px-4 py-2 rounded-xl text-sm font-medium transition text-slate-500 hover:bg-slate-50">📝 Registrasi</button>
+      <button onclick="switchTab('scan-tab')" id="btn-scan-tab" class="px-4 py-2 rounded-xl text-sm font-medium transition bg-teal-100 text-teal-700" disabled>📸 Scan Wajah</button>
+      <button onclick="switchTab('reg-tab')" id="btn-reg-tab" class="px-4 py-2 rounded-xl text-sm font-medium transition text-slate-500 hover:bg-slate-50" disabled>📝 Registrasi</button>
       <button onclick="switchTab('data-tab'); loadKehadiran();" id="btn-data-tab" class="px-4 py-2 rounded-xl text-sm font-medium transition text-slate-500 hover:bg-slate-50">📊 Leger & Riwayat</button>
     </div>
   </nav>
 
   <main class="flex-1 max-w-4xl w-full mx-auto p-4 sm:p-6">
+    
     <section id="scan-tab" class="tab-content block">
       <div class="bg-white rounded-2xl p-6 shadow-sm border border-slate-100 text-center">
-        <h2 class="text-xl font-semibold text-slate-800 mb-2">Pindai Kehadiran Siswa</h2>
-        <p class="text-sm text-slate-400 mb-6">Arahkan kamera ke wajah siswa secara bergantian</p>
-        <div class="relative w-full max-w-md mx-auto aspect-video rounded-2xl overflow-hidden bg-slate-900 shadow-inner mb-4 border-4 border-white ring-4 ring-teal-50">
+        <h2 class="text-xl font-semibold text-slate-800 mb-2">Pindai Kehadiran Otomatis</h2>
+        <p class="text-sm text-slate-400 mb-6">Dekatkan wajah ke kamera, AI akan langsung mencatat presensi tanpa klik tombol</p>
+        <div id="canvas-wrapper-scan" class="video-container w-full max-w-md mx-auto aspect-video rounded-2xl overflow-hidden bg-slate-900 shadow-inner mb-4 border-4 border-white ring-4 ring-teal-50">
           <video id="video-scan" autoplay muted playsinline class="w-full h-full object-cover"></video>
         </div>
-        <div class="flex justify-center space-x-3 mb-6">
+        <div class="flex justify-center space-x-3 mb-2">
           <button onclick="toggleCamera('scan')" class="bg-slate-100 hover:bg-slate-200 text-slate-700 px-4 py-2 rounded-xl text-xs font-medium flex items-center gap-2 transition">🔄 Ganti Kamera</button>
-          <button onclick="simulasiScanWajah()" class="bg-teal-400 hover:bg-teal-500 text-white px-5 py-2 rounded-xl text-xs font-medium shadow-sm transition">⚡ Simulasikan Scan (Uji Coba)</button>
         </div>
-        <div id="scan-feedback" class="hidden max-w-md mx-auto p-4 rounded-xl text-sm font-medium mb-2"></div>
+        <div id="ai-status" class="text-xs text-teal-600 font-medium">Mengaktifkan pemindai wajah...</div>
       </div>
     </section>
 
@@ -51,14 +65,26 @@
         <div class="bg-white rounded-2xl p-6 shadow-sm border border-slate-100">
           <h2 class="text-lg font-semibold text-slate-800 mb-4">Pendaftaran Murid Baru</h2>
           <div class="space-y-4">
-            <input type="text" id="reg-nisn" placeholder="NISN Siswa" class="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm">
-            <input type="text" id="reg-nama" placeholder="Nama Lengkap" class="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm">
-            <input type="text" id="reg-kontak" placeholder="No WA Ortu (Contoh: 6281234)" class="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm">
-            <button onclick="simpanRegistrasi()" class="w-full bg-teal-400 hover:bg-teal-500 text-white font-medium py-2.5 rounded-xl text-sm transition">💾 Simpan Data & Wajah</button>
+            <div>
+              <label class="text-xs font-medium text-slate-400 block mb-1">Nomor Induk Siswa Nasional (NISN)</label>
+              <input type="text" id="reg-nisn" placeholder="Contoh: 00123456" class="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm">
+            </div>
+            <div>
+              <label class="text-xs font-medium text-slate-400 block mb-1">Nama Lengkap</label>
+              <input type="text" id="reg-nama" placeholder="Nama Lengkap Siswa" class="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm">
+            </div>
+            <div>
+              <label class="text-xs font-medium text-slate-400 block mb-1">No. HP WhatsApp Orang Tua</label>
+              <input type="text" id="reg-kontak" placeholder="Contoh: 62812345678" class="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm">
+            </div>
+            <button id="btn-submit-reg" onclick="simpanRegistrasiWithAI()" class="w-full bg-teal-400 hover:bg-teal-500 text-white font-medium py-2.5 rounded-xl text-sm transition mt-2 flex justify-center items-center gap-2">
+              <span>💾 Simpan Data & Pindai Wajah</span>
+            </button>
           </div>
         </div>
-        <div class="bg-white rounded-2xl p-6 shadow-sm border border-slate-100 flex flex-col justify-center items-center">
-          <div class="w-full aspect-video rounded-xl overflow-hidden bg-slate-800 mb-3">
+        <div class="bg-white rounded-2xl p-6 shadow-sm border border-slate-100 flex flex-col justify-center items-center text-center">
+          <span class="text-xs font-medium text-slate-400 mb-2">Kamera Perekam Wajah (Pastikan Wajah Terlihat Jelas)</span>
+          <div id="canvas-wrapper-reg" class="video-container w-full aspect-video rounded-xl overflow-hidden bg-slate-800 mb-3">
             <video id="video-reg" autoplay muted playsinline class="w-full h-full object-cover"></video>
           </div>
           <button onclick="toggleCamera('reg')" class="bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-600 px-4 py-2 rounded-xl text-xs font-medium transition">🔄 Ganti Kamera</button>
@@ -68,18 +94,24 @@
 
     <section id="data-tab" class="tab-content hidden">
       <div class="bg-white rounded-2xl p-6 shadow-sm border border-slate-100">
-        <div class="flex justify-between items-center mb-6">
-          <h2 class="text-lg font-semibold text-slate-800">Log Presensi Harian</h2>
-          <input type="date" id="filter-tanggal" onchange="loadKehadiran()" class="px-4 py-2 rounded-xl border border-slate-200 text-sm font-medium">
+        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+          <div>
+            <h2 class="text-lg font-semibold text-slate-800">Manajemen & Leger Harian</h2>
+            <p class="text-xs text-slate-400">Menampilkan siswa yang berhasil scan wajah hari ini.</p>
+          </div>
+          <div class="flex flex-wrap gap-2 w-full sm:w-auto justify-end">
+            <button onclick="bukaModalManual()" class="bg-amber-500 hover:bg-amber-600 text-white px-3 py-2 rounded-xl text-xs font-medium transition flex items-center gap-1">➕ Input Manual Siswa Absen</button>
+            <input type="date" id="filter-tanggal" onchange="loadKehadiran()" class="px-4 py-2 rounded-xl border border-slate-200 text-sm font-medium text-slate-600">
+          </div>
         </div>
-        <div class="overflow-x-auto">
+        <div class="overflow-x-auto rounded-xl border border-slate-100">
           <table class="w-full text-left border-collapse">
             <thead>
-              <tr class="bg-slate-50 text-slate-400 text-xs border-b border-slate-100">
+              <tr class="bg-slate-50 text-slate-400 text-xs font-medium tracking-wider uppercase border-b border-slate-100">
                 <th class="px-4 py-3">Siswa</th>
-                <th class="px-4 py-3">Status</th>
-                <th class="px-4 py-3 text-center">Ubah Manual</th>
-                <th class="px-4 py-3 text-right">Aksi</th>
+                <th class="px-4 py-3">Status Saat Ini</th>
+                <th class="px-4 py-3 text-center">Ubah Status Manual</th>
+                <th class="px-4 py-3 text-right">Hubungi Ortu</th>
               </tr>
             </thead>
             <tbody id="tabel-kehadiran-body" class="text-sm divide-y divide-slate-50"></tbody>
@@ -89,25 +121,71 @@
     </section>
   </main>
 
+  <div id="modal-manual" class="fixed inset-0 bg-slate-900/40 backdrop-blur-sm hidden items-center justify-center z-[999] p-4">
+    <div class="bg-white rounded-2xl max-w-md w-full p-6 shadow-xl max-h-[80vh] flex flex-col">
+      <div class="flex justify-between items-center mb-4">
+        <h3 class="text-base font-semibold text-slate-800">Siswa Belum Presensi</h3>
+        <button onclick="tutupModalManual()" class="text-slate-400 hover:text-slate-600 font-bold text-lg">&times;</button>
+      </div>
+      <div class="overflow-y-auto flex-1 divide-y divide-slate-100" id="daftar-belum-absen"></div>
+    </div>
+  </div>
+
   <script>
     let currentStream = null;
     let currentFacingMode = "user"; 
     let databaseSiswaCache = [];
+    let kehadiranHariIniCache = [];
+    let isAiReady = false;
+    let scanInterval = null;
+    let lastScannedNisn = null;
+    let lastScanTime = 0;
 
-    window.onload = function() {
+    window.onload = async function() {
       document.getElementById('filter-tanggal').value = new Date().toISOString().split('T')[0];
-      initCamera('video-scan');
+      await initAI();
       fetchDatabaseSiswa();
     };
+
+    // Fungsi Mengaktifkan Otak AI Face-API
+    async function initAI() {
+      try {
+        // Load model secara paralel dari CDN publik resmi
+        await Promise.all([
+          faceapi.nets.ssdMobilenetv1.loadFromUri(MODEL_URL),
+          faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL),
+          faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL)
+        ]);
+        isAiReady = true;
+        document.getElementById('ai-loading').classList.add('hidden');
+        document.getElementById('btn-scan-tab').removeAttribute('disabled');
+        document.getElementById('btn-reg-tab').removeAttribute('disabled');
+        showToast("Sistem AI Wajah Berhasil Diaktifkan!", "success");
+        initCamera('video-scan');
+      } catch (e) {
+        console.error(e);
+        document.getElementById('ai-loading').innerText = "❌ Gagal mengunduh Otak AI. Silakan periksa koneksi internet Anda.";
+      }
+    }
+
+    function showToast(message, type = "success") {
+      const container = document.getElementById('toast-container');
+      const toast = document.createElement('div');
+      toast.className = `toast p-4 rounded-xl shadow-lg text-sm font-medium max-w-xs text-white pointer-events-auto flex items-center gap-2 ${type === 'success' ? 'bg-emerald-600' : 'bg-rose-600'}`;
+      toast.innerHTML = type === 'success' ? `<span>✅</span> <span>${message}</span>` : `<span>❌</span> <span>${message}</span>`;
+      container.appendChild(toast);
+      setTimeout(() => { toast.style.opacity = '0'; setTimeout(() => toast.remove(), 300); }, 4000);
+    }
 
     function fetchDatabaseSiswa() {
       fetch(`${API_URL}?action=getSiswa`)
         .then(res => res.json())
         .then(data => { databaseSiswaCache = data; })
-        .catch(e => console.error("Gagal memuat db:", e));
+        .catch(e => console.error("Gagal memuat DB:", e));
     }
 
     function switchTab(tabId) {
+      clearInterval(scanInterval);
       document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
       document.getElementById(tabId).classList.remove('hidden');
       document.querySelectorAll('nav button').forEach(btn => {
@@ -115,6 +193,10 @@
         btn.classList.add('text-slate-500', 'hover:bg-slate-50');
       });
       document.getElementById('btn-' + tabId).classList.add('bg-teal-100', 'text-teal-700');
+      
+      // Bersihkan sisa canvas kotak wajah lama jika ada
+      document.querySelectorAll('canvas').forEach(c => c.remove());
+
       if(tabId === 'scan-tab') initCamera('video-scan');
       else if(tabId === 'reg-tab') initCamera('video-reg');
       else stopAllCamera();
@@ -122,16 +204,22 @@
 
     function initCamera(videoId) {
       stopAllCamera();
-      navigator.mediaDevices.getUserMedia({ video: { facingMode: currentFacingMode } })
+      navigator.mediaDevices.getUserMedia({ video: { facingMode: currentFacingMode, width: 480, height: 360 } })
         .then(stream => {
           currentStream = stream;
           const vid = document.getElementById(videoId);
-          if(vid) vid.srcObject = stream;
+          if(vid) {
+            vid.srcObject = stream;
+            vid.onloadedmetadata = () => {
+              if(videoId === 'video-scan') mulaiLoopScanOtomatis(vid);
+            };
+          }
         })
-        .catch(e => alert("Kamera gagal diakses. Pastikan izin kamera aktif!"));
+        .catch(e => showToast("Akses kamera ditolak browser atau tidak ditemukan!", "danger"));
     }
 
     function stopAllCamera() {
+      clearInterval(scanInterval);
       if (currentStream) { currentStream.getTracks().forEach(t => t.stop()); currentStream = null; }
     }
 
@@ -140,60 +228,193 @@
       initCamera(type === 'scan' ? 'video-scan' : 'video-reg');
     }
 
-    function simulasiScanWajah() {
-      if(databaseSiswaCache.length === 0) return alert("Database kosong/belum termuat!");
-      const siswa = databaseSiswaCache[Math.floor(Math.random() * databaseSiswaCache.length)];
-      const tgl = document.getElementById('filter-tanggal').value;
+    // ================= LOOP DETEKSI ABSEN OTOMATIS =================
+    function mulaiLoopScanOtomatis(video) {
+      const wrapper = document.getElementById('canvas-wrapper-scan');
+      const canvas = faceapi.createCanvasFromMedia(video);
+      wrapper.appendChild(canvas);
       
-      fetch(API_URL, {
-        method: "POST",
-        body: JSON.stringify({ action: "presensi", nisn: siswa.nisn, nama: siswa.nama, status: "Hadir", tanggal: tgl })
-      })
-      .then(res => res.json())
-      .then(res => {
-        const box = document.getElementById('scan-feedback');
-        box.className = "max-w-md mx-auto p-4 rounded-xl text-sm font-medium mb-2 block pastel-success";
-        box.innerText = `✅ ${siswa.nama} Berhasil Hadir!`;
-        if ('speechSynthesis' in window) window.speechSynthesis.speak(new SpeechSynthesisUtterance(`${siswa.nama} Hadir`));
-      });
+      const displaySize = { width: video.clientWidth, height: video.clientHeight };
+      faceapi.matchDimensions(canvas, displaySize);
+
+      document.getElementById('ai-status').innerText = "🤖 AI Wajah Aktif: Menunggu Wajah Siswa...";
+
+      scanInterval = setInterval(async () => {
+        if(!isAiReady || databaseSiswaCache.length === 0) return;
+
+        // Deteksi wajah tunggal di depan kamera lengkap dengan deskriptor angkanya
+        const deteksi = await faceapi.detectSingleFace(video, new faceapi.SsdMobilenetv1Options({ minConfidence: 0.5 }))
+                                    .withFaceLandmarks()
+                                    .withFaceDescriptor();
+
+        canvas.getContext('2d').clearRect(0, 0, canvas.width, canvas.height);
+
+        if(deteksi) {
+          // Gambar kotak pelacak wajah di layar
+          const resizedDetections = faceapi.resizeResults(deteksi, displaySize);
+          faceapi.draw.drawDetections(canvas, resizedDetections);
+
+          const descriptorSekarang = deteksi.descriptor;
+          let siswaDitemukan = null;
+          let jarakTerbaik = 1.0; // Semakin kecil angka jarak, semakin mirip wajahnya
+
+          // Lakukan pencocokan pola matriks wajah dengan data di Google Sheets
+          databaseSiswaCache.forEach(siswa => {
+            if(siswa.descriptor && Array.isArray(siswa.descriptor)) {
+              const jarak = faceapi.euclideanDistance(descriptorSekarang, siswa.descriptor);
+              if(jarak < jarakTerbaik) {
+                jarakTerbaik = jarak;
+                siswaDitemukan = siswa;
+              }
+            }
+          });
+
+          // Batas toleransi kecocokan AI wajah standar dunia (Jarak < 0.55 berarti valid orang yang sama)
+          if(siswaDitemukan && jarakTerbaik < 0.55) {
+            const waktuSekarang = Date.now();
+            // Kunci jeda 8 detik agar satu anak tidak ter-absen berkali-kali berturut-turut
+            if(lastScannedNisn === siswaDitemukan.nisn && (waktuSekarang - lastScanTime) < 8000) {
+              return; 
+            }
+
+            lastScannedNisn = siswaDitemukan.nisn;
+            lastScanTime = waktuSekarang;
+
+            // Tembak presensi otomatis ke database
+            const tgl = document.getElementById('filter-tanggal').value;
+            document.getElementById('ai-status').innerText = `⚡ Memproses absen: ${siswaDitemukan.nama}`;
+
+            fetch(API_URL, {
+              method: "POST",
+              body: JSON.stringify({ action: "presensi", nisn: siswaDitemukan.nisn, nama: siswaDitemukan.nama, status: "Hadir", tanggal: tgl })
+            })
+            .then(res => res.json())
+            .then(() => {
+              showToast(`Scan Berhasil! ${siswaDitemukan.nama} tercatat Hadir.`, "success");
+              document.getElementById('ai-status').innerText = `🤖 AI Wajah Aktif: Menunggu Wajah Siswa...`;
+              if ('speechSynthesis' in window) window.speechSynthesis.speak(new SpeechSynthesisUtterance(`${siswaDitemukan.nama} Hadir`));
+            });
+          }
+        }
+      }, 600); // Melakukan scanning setiap 0.6 detik sekali demi akurasi dan hemat baterai HP
     }
 
-    function simpanRegistrasi() {
-      const nisn = document.getElementById('reg-nisn').value;
-      const nama = document.getElementById('reg-nama').value;
-      const kontak = document.getElementById('reg-kontak').value;
-      if(!nisn || !nama || !kontak) return alert("Wajib diisi semua!");
+    // ================= REGISTRASI + REKAM FITUR WAJAH =================
+    async function simpanRegistrasiWithAI() {
+      const nisn = document.getElementById('reg-nisn').value.trim();
+      const nama = document.getElementById('reg-nama').value.trim();
+      const kontak = document.getElementById('reg-kontak').value.trim();
+      const video = document.getElementById('video-reg');
+      const btn = document.getElementById('btn-submit-reg');
+
+      if(!nisn || !nama || !kontak) return showToast("Semua kolom data wajib diisi!", "danger");
+
+      // Proteksi Duplikasi Nama/NISN
+      const sudahAda = databaseSiswaCache.some(s => s.nisn === nisn || s.nama.toLowerCase() === nama.toLowerCase());
+      if(sudahAda) return showToast("Siswa dengan NISN atau Nama tersebut sudah terdaftar di sekolah!", "danger");
+
+      btn.setAttribute('disabled', 'true');
+      btn.innerText = "⏳ Memindai Guratan Wajah...";
+
+      // Ambil snapshot biometric wajah anak dari video
+      const deteksi = await faceapi.detectSingleFace(video, new faceapi.SsdMobilenetv1Options({ minConfidence: 0.6 }))
+                                  .withFaceLandmarks()
+                                  .withFaceDescriptor();
+
+      if(!deteksi) {
+        btn.removeAttribute('disabled');
+        btn.innerText = "💾 Simpan Data & Pindai Wajah";
+        return showToast("Wajah tidak terdeteksi! Pastikan wajah siswa menghadap kamera dengan jelas dan terang.", "danger");
+      }
+
+      // Array 128 angka pola wajah hasil ekstraksi AI
+      const faceDescriptorArray = Array.from(deteksi.descriptor);
+
+      btn.innerText = "🚀 Mengirim ke Google Sheets...";
 
       fetch(API_URL, {
         method: "POST",
-        body: JSON.stringify({ action: "register", nisn: nisn, nama: nama, kontak: kontak, descriptor: JSON.stringify([0.1, 0.2]) })
+        body: JSON.stringify({ action: "register", nisn: nisn, nama: nama, kontak: kontak, descriptor: JSON.stringify(faceDescriptorArray) })
       })
       .then(res => res.json())
       .then(() => {
-        alert("Siswa berhasil didaftarkan!");
+        showToast(`Pendaftaran Berhasil! Biometric wajah ${nama} sukses dikunci.`, "success");
+        // Kosongkan kembali kotak isian formulir sesuai instruksi poin 2
+        document.getElementById('reg-nisn').value = '';
+        document.getElementById('reg-nama').value = '';
+        document.getElementById('reg-kontak').value = '';
         fetchDatabaseSiswa();
+      })
+      .catch(() => showToast("Gagal mendaftarkan data ke database.", "danger"))
+      .finally(() => {
+        btn.removeAttribute('disabled');
+        btn.innerText = "💾 Simpan Data & Pindai Wajah";
       });
     }
 
+    // ================= LEGER & REKAPAN DATABASE =================
     function loadKehadiran() {
       const tgl = document.getElementById('filter-tanggal').value;
       const tbody = document.getElementById('tabel-kehadiran-body');
-      tbody.innerHTML = `<tr><td colspan="4" class="text-center py-4">Memuat...</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="4" class="text-center py-4 text-slate-400">Memuat rekap data...</td></tr>`;
       
       fetch(`${API_URL}?action=getKehadiran&tanggal=${tgl}`)
         .then(res => res.json())
         .then(data => {
+          kehadiranHariIniCache = data;
           tbody.innerHTML = "";
-          data.forEach(item => {
+
+          // Cek Aturan Batas Jam Mengajar 12.30 WIB (Poin 4 & 5)
+          const sekarang = new Date();
+          const jamSekarang = sekarang.getHours() + (sekarang.getMinutes() / 60);
+          const isSudahMelewatiBatas = jamSekarang >= 12.5; // Jam 12.5 = 12:30 WIB
+
+          let dataTampil = data.filter(item => item.status !== "Alpa");
+
+          if (isSudahMelewatiBatas) {
+            data.forEach(item => {
+              if (item.status === "Alpa") {
+                item.status = "Hadir"; 
+                fetch(API_URL, { method: "POST", body: JSON.stringify({ action: "presensi", nisn: item.nisn, nama: item.nama, status: "Hadir", tanggal: tgl }) });
+              }
+            });
+            dataTampil = data; 
+          }
+
+          if(dataTampil.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="4" class="text-center py-4 text-slate-400">Belum ada siswa yang melakukan scan wajah hari ini.</td></tr>`;
+            return;
+          }
+
+          dataTampil.forEach(item => {
+            let badgeColor = "pastel-danger";
+            if(item.status === 'Hadir') badgeColor = "pastel-success";
+            else if(item.status === 'Sakit' || item.status === 'Izin') badgeColor = "pastel-warning";
+            
+            const textWA = encodeURIComponent(`Halo Bapak/Ibu, kami menginfokan bahwa anak Anda *${item.nama}* hari ini tercatat *${item.status}* pada kegiatan belajar.`);
+
             const tr = document.createElement('tr');
+            tr.className = "hover:bg-slate-50 transition";
             tr.innerHTML = `
-              <td class="px-4 py-3"><b>${item.nama}</b><br><span class="text-xs text-slate-400">NISN: ${item.nisn}</span></td>
-              <td class="px-4 py-3">${item.status}</td>
-              <td class="px-4 py-3 text-center">
-                <button onclick="ubahStatusManual('${item.nisn}', '${item.nama}', 'Hadir')" class="px-2 py-1 text-xs bg-emerald-50 text-emerald-600 rounded">H</button>
-                <button onclick="ubahStatusManual('${item.nisn}', '${item.nama}', 'Alpa')" class="px-2 py-1 text-xs bg-rose-50 text-rose-600 rounded">A</button>
+              <td class="px-4 py-3">
+                <div class="font-medium text-slate-800">${item.nama}</div>
+                <div class="text-xs text-slate-400">NISN: ${item.nisn}</div>
               </td>
-              <td class="px-4 py-3 text-right"><a href="https://wa.me/${item.kontak}" target="_blank" class="text-xs bg-teal-100 text-teal-700 p-2 rounded-xl">💬 WA</a></td>
+              <td class="px-4 py-3">
+                <span class="px-2.5 py-1 rounded-lg text-xs font-semibold ${badgeColor}">${item.status}</span>
+              </td>
+              <td class="px-4 py-3">
+                <div class="flex justify-center space-x-1">
+                  <button onclick="ubahStatusManual('${item.nisn}', '${item.nama}', 'Hadir')" class="px-2 py-1 text-xs bg-emerald-50 text-emerald-600 hover:bg-emerald-100 rounded-md font-medium transition">H</button>
+                  <button onclick="ubahStatusManual('${item.nisn}', '${item.nama}', 'Sakit')" class="px-2 py-1 text-xs bg-amber-50 text-amber-600 hover:bg-amber-100 rounded-md font-medium transition">S</button>
+                  <button onclick="ubahStatusManual('${item.nisn}', '${item.nama}', 'Izin')" class="px-2 py-1 text-xs bg-blue-50 text-blue-600 hover:bg-blue-100 rounded-md font-medium transition">I</button>
+                  <button onclick="ubahStatusManual('${item.nisn}', '${item.nama}', 'Alpa')" class="px-2 py-1 text-xs bg-rose-50 text-rose-600 hover:bg-rose-100 rounded-md font-medium transition">A</button>
+                </div>
+              </td>
+              <td class="px-4 py-3 text-right space-x-2">
+                <a href="https://wa.me/${item.kontak}?text=${textWA}" target="_blank" class="inline-block p-1.5 bg-emerald-100 text-emerald-700 hover:bg-emerald-200 rounded-xl text-xs transition">💬 WA</a>
+                <a href="tel:${item.kontak}" class="inline-block p-1.5 bg-slate-100 text-slate-600 hover:bg-slate-200 rounded-xl text-xs transition">📞 Telp</a>
+              </td>
             `;
             tbody.appendChild(tr);
           });
@@ -205,7 +426,48 @@
       fetch(API_URL, {
         method: "POST",
         body: JSON.stringify({ action: "presensi", nisn: nisn, nama: nama, status: stat, tanggal: tgl })
-      }).then(() => loadKehadiran());
+      }).then(() => {
+        showToast(`Status ${nama} berhasil diubah ke ${stat}`, "success");
+        loadKehadiran();
+        tutupModalManual();
+      });
+    }
+
+    function bukaModalManual() {
+      const modal = document.getElementById('modal-manual');
+      const box = document.getElementById('daftar-belum-absen');
+      box.innerHTML = "";
+      
+      const belumAbsen = kehadiranHariIniCache.filter(item => item.status === "Alpa");
+      
+      if(belumAbsen.length === 0) {
+        box.innerHTML = "<p class='text-sm text-slate-400 text-center py-6'>Semua siswa sudah masuk data leger hari ini.</p>";
+      } else {
+        belumAbsen.forEach(siswa => {
+          const div = document.createElement('div');
+          div.className = "py-3 flex justify-between items-center";
+          div.innerHTML = `
+            <div>
+              <div class="text-sm font-medium text-slate-800">${siswa.nama}</div>
+              <div class="text-xs text-slate-400">NISN: ${siswa.nisn}</div>
+            </div>
+            <div class="flex space-x-1">
+              <button onclick="ubahStatusManual('${siswa.nisn}', '${siswa.nama}', 'Sakit')" class="px-2 py-1 text-xs bg-amber-50 text-amber-600 rounded">Sakit</button>
+              <button onclick="ubahStatusManual('${siswa.nisn}', '${siswa.nama}', 'Izin')" class="px-2 py-1 text-xs bg-blue-50 text-blue-600 rounded">Izin</button>
+              <button onclick="ubahStatusManual('${siswa.nisn}', '${siswa.nama}', 'Alpa')" class="px-2 py-1 text-xs bg-rose-50 text-rose-600 rounded">Alpa</button>
+            </div>
+          `;
+          box.appendChild(div);
+        });
+      }
+      modal.classList.remove('hidden');
+      modal.classList.add('flex');
+    }
+
+    function tutupModalManual() {
+      const modal = document.getElementById('modal-manual');
+      modal.classList.add('hidden');
+      modal.classList.remove('flex');
     }
   </script>
 </body>
