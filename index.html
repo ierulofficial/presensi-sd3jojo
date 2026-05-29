@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <title>E-Presensi Kelas 6 SD 3 Jojo</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600&display=swap" rel="stylesheet">
+  <style>
+    body { font-family: 'Poppins', sans-serif; background-color: #F4F7F6; }
+    .pastel-success { background-color: #E8F5E9; color: #2E7D32; } 
+    .pastel-danger { background-color: #FFEBEE; color: #C62828; } 
+    .pastel-warning { background-color: #FFF3E0; color: #EF6C00; } 
+  </style>
+</head>
+<body class="text-slate-700 min-h-screen flex flex-col">
+
+  <script>
+    const API_URL = "https://script.google.com/macros/s/AKfycbwK5cnXfJmxcSZpzG0prl8ecu5CtmG-Uy3BCAFRbMEV7laYZS8SDX0fr2pCipba0Pl46Q/exec";
+  </script>
+
+  <nav class="bg-white shadow-sm border-b border-slate-100 px-6 py-4 flex flex-wrap justify-between items-center sticky top-0 z-50">
+    <div class="flex items-center space-x-2">
+      <div class="w-8 h-8 rounded-full bg-teal-400 flex items-center justify-center text-white font-bold text-sm">🎒</div>
+      <span class="text-lg font-semibold tracking-wide text-slate-800">Smart<span class="text-teal-500">Presence</span></span>
+    </div>
+    <div class="flex space-x-2 mt-2 sm:mt-0">
+      <button onclick="switchTab('scan-tab')" id="btn-scan-tab" class="px-4 py-2 rounded-xl text-sm font-medium transition bg-teal-100 text-teal-700">📸 Scan Wajah</button>
+      <button onclick="switchTab('reg-tab')" id="btn-reg-tab" class="px-4 py-2 rounded-xl text-sm font-medium transition text-slate-500 hover:bg-slate-50">📝 Registrasi</button>
+      <button onclick="switchTab('data-tab'); loadKehadiran();" id="btn-data-tab" class="px-4 py-2 rounded-xl text-sm font-medium transition text-slate-500 hover:bg-slate-50">📊 Leger & Riwayat</button>
+    </div>
+  </nav>
+
+  <main class="flex-1 max-w-4xl w-full mx-auto p-4 sm:p-6">
+    <section id="scan-tab" class="tab-content block">
+      <div class="bg-white rounded-2xl p-6 shadow-sm border border-slate-100 text-center">
+        <h2 class="text-xl font-semibold text-slate-800 mb-2">Pindai Kehadiran Siswa</h2>
+        <p class="text-sm text-slate-400 mb-6">Arahkan kamera ke wajah siswa secara bergantian</p>
+        <div class="relative w-full max-w-md mx-auto aspect-video rounded-2xl overflow-hidden bg-slate-900 shadow-inner mb-4 border-4 border-white ring-4 ring-teal-50">
+          <video id="video-scan" autoplay muted playsinline class="w-full h-full object-cover"></video>
+        </div>
+        <div class="flex justify-center space-x-3 mb-6">
+          <button onclick="toggleCamera('scan')" class="bg-slate-100 hover:bg-slate-200 text-slate-700 px-4 py-2 rounded-xl text-xs font-medium flex items-center gap-2 transition">🔄 Ganti Kamera</button>
+          <button onclick="simulasiScanWajah()" class="bg-teal-400 hover:bg-teal-500 text-white px-5 py-2 rounded-xl text-xs font-medium shadow-sm transition">⚡ Simulasikan Scan (Uji Coba)</button>
+        </div>
+        <div id="scan-feedback" class="hidden max-w-md mx-auto p-4 rounded-xl text-sm font-medium mb-2"></div>
+      </div>
+    </section>
+
+    <section id="reg-tab" class="tab-content hidden">
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div class="bg-white rounded-2xl p-6 shadow-sm border border-slate-100">
+          <h2 class="text-lg font-semibold text-slate-800 mb-4">Pendaftaran Murid Baru</h2>
+          <div class="space-y-4">
+            <input type="text" id="reg-nisn" placeholder="NISN Siswa" class="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm">
+            <input type="text" id="reg-nama" placeholder="Nama Lengkap" class="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm">
+            <input type="text" id="reg-kontak" placeholder="No WA Ortu (Contoh: 6281234)" class="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm">
+            <button onclick="simpanRegistrasi()" class="w-full bg-teal-400 hover:bg-teal-500 text-white font-medium py-2.5 rounded-xl text-sm transition">💾 Simpan Data & Wajah</button>
+          </div>
+        </div>
+        <div class="bg-white rounded-2xl p-6 shadow-sm border border-slate-100 flex flex-col justify-center items-center">
+          <div class="w-full aspect-video rounded-xl overflow-hidden bg-slate-800 mb-3">
+            <video id="video-reg" autoplay muted playsinline class="w-full h-full object-cover"></video>
+          </div>
+          <button onclick="toggleCamera('reg')" class="bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-600 px-4 py-2 rounded-xl text-xs font-medium transition">🔄 Ganti Kamera</button>
+        </div>
+      </div>
+    </section>
+
+    <section id="data-tab" class="tab-content hidden">
+      <div class="bg-white rounded-2xl p-6 shadow-sm border border-slate-100">
+        <div class="flex justify-between items-center mb-6">
+          <h2 class="text-lg font-semibold text-slate-800">Log Presensi Harian</h2>
+          <input type="date" id="filter-tanggal" onchange="loadKehadiran()" class="px-4 py-2 rounded-xl border border-slate-200 text-sm font-medium">
+        </div>
+        <div class="overflow-x-auto">
+          <table class="w-full text-left border-collapse">
+            <thead>
+              <tr class="bg-slate-50 text-slate-400 text-xs border-b border-slate-100">
+                <th class="px-4 py-3">Siswa</th>
+                <th class="px-4 py-3">Status</th>
+                <th class="px-4 py-3 text-center">Ubah Manual</th>
+                <th class="px-4 py-3 text-right">Aksi</th>
+              </tr>
+            </thead>
+            <tbody id="tabel-kehadiran-body" class="text-sm divide-y divide-slate-50"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    let currentStream = null;
+    let currentFacingMode = "user"; 
+    let databaseSiswaCache = [];
+
+    window.onload = function() {
+      document.getElementById('filter-tanggal').value = new Date().toISOString().split('T')[0];
+      initCamera('video-scan');
+      fetchDatabaseSiswa();
+    };
+
+    function fetchDatabaseSiswa() {
+      fetch(`${API_URL}?action=getSiswa`)
+        .then(res => res.json())
+        .then(data => { databaseSiswaCache = data; })
+        .catch(e => console.error("Gagal memuat db:", e));
+    }
+
+    function switchTab(tabId) {
+      document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
+      document.getElementById(tabId).classList.remove('hidden');
+      document.querySelectorAll('nav button').forEach(btn => {
+        btn.classList.remove('bg-teal-100', 'text-teal-700');
+        btn.classList.add('text-slate-500', 'hover:bg-slate-50');
+      });
+      document.getElementById('btn-' + tabId).classList.add('bg-teal-100', 'text-teal-700');
+      if(tabId === 'scan-tab') initCamera('video-scan');
+      else if(tabId === 'reg-tab') initCamera('video-reg');
+      else stopAllCamera();
+    }
+
+    function initCamera(videoId) {
+      stopAllCamera();
+      navigator.mediaDevices.getUserMedia({ video: { facingMode: currentFacingMode } })
+        .then(stream => {
+          currentStream = stream;
+          const vid = document.getElementById(videoId);
+          if(vid) vid.srcObject = stream;
+        })
+        .catch(e => alert("Kamera gagal diakses. Pastikan izin kamera aktif!"));
+    }
+
+    function stopAllCamera() {
+      if (currentStream) { currentStream.getTracks().forEach(t => t.stop()); currentStream = null; }
+    }
+
+    function toggleCamera(type) {
+      currentFacingMode = (currentFacingMode === "user") ? "environment" : "user";
+      initCamera(type === 'scan' ? 'video-scan' : 'video-reg');
+    }
+
+    function simulasiScanWajah() {
+      if(databaseSiswaCache.length === 0) return alert("Database kosong/belum termuat!");
+      const siswa = databaseSiswaCache[Math.floor(Math.random() * databaseSiswaCache.length)];
+      const tgl = document.getElementById('filter-tanggal').value;
+      
+      fetch(API_URL, {
+        method: "POST",
+        body: JSON.stringify({ action: "presensi", nisn: siswa.nisn, nama: siswa.nama, status: "Hadir", tanggal: tgl })
+      })
+      .then(res => res.json())
+      .then(res => {
+        const box = document.getElementById('scan-feedback');
+        box.className = "max-w-md mx-auto p-4 rounded-xl text-sm font-medium mb-2 block pastel-success";
+        box.innerText = `✅ ${siswa.nama} Berhasil Hadir!`;
+        if ('speechSynthesis' in window) window.speechSynthesis.speak(new SpeechSynthesisUtterance(`${siswa.nama} Hadir`));
+      });
+    }
+
+    function simpanRegistrasi() {
+      const nisn = document.getElementById('reg-nisn').value;
+      const nama = document.getElementById('reg-nama').value;
+      const kontak = document.getElementById('reg-kontak').value;
+      if(!nisn || !nama || !kontak) return alert("Wajib diisi semua!");
+
+      fetch(API_URL, {
+        method: "POST",
+        body: JSON.stringify({ action: "register", nisn: nisn, nama: nama, kontak: kontak, descriptor: JSON.stringify([0.1, 0.2]) })
+      })
+      .then(res => res.json())
+      .then(() => {
+        alert("Siswa berhasil didaftarkan!");
+        fetchDatabaseSiswa();
+      });
+    }
+
+    function loadKehadiran() {
+      const tgl = document.getElementById('filter-tanggal').value;
+      const tbody = document.getElementById('tabel-kehadiran-body');
+      tbody.innerHTML = `<tr><td colspan="4" class="text-center py-4">Memuat...</td></tr>`;
+      
+      fetch(`${API_URL}?action=getKehadiran&tanggal=${tgl}`)
+        .then(res => res.json())
+        .then(data => {
+          tbody.innerHTML = "";
+          data.forEach(item => {
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+              <td class="px-4 py-3"><b>${item.nama}</b><br><span class="text-xs text-slate-400">NISN: ${item.nisn}</span></td>
+              <td class="px-4 py-3">${item.status}</td>
+              <td class="px-4 py-3 text-center">
+                <button onclick="ubahStatusManual('${item.nisn}', '${item.nama}', 'Hadir')" class="px-2 py-1 text-xs bg-emerald-50 text-emerald-600 rounded">H</button>
+                <button onclick="ubahStatusManual('${item.nisn}', '${item.nama}', 'Alpa')" class="px-2 py-1 text-xs bg-rose-50 text-rose-600 rounded">A</button>
+              </td>
+              <td class="px-4 py-3 text-right"><a href="https://wa.me/${item.kontak}" target="_blank" class="text-xs bg-teal-100 text-teal-700 p-2 rounded-xl">💬 WA</a></td>
+            `;
+            tbody.appendChild(tr);
+          });
+        });
+    }
+
+    function ubahStatusManual(nisn, nama, stat) {
+      const tgl = document.getElementById('filter-tanggal').value;
+      fetch(API_URL, {
+        method: "POST",
+        body: JSON.stringify({ action: "presensi", nisn: nisn, nama: nama, status: stat, tanggal: tgl })
+      }).then(() => loadKehadiran());
+    }
+  </script>
+</body>
+</html>
